@@ -1,0 +1,54 @@
+'use server';
+
+import { prisma } from '@/lib/prisma';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+
+function slugify(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+export async function createTenantBySuperAdminAction(
+  name: string,
+  adminEmail: string,
+  plan: string,
+  adminPassword?: string,
+): Promise<{ success: boolean; error?: string; tenantId?: string }> {
+  const session = await getServerSession(authOptions);
+  if (session?.user?.role !== 'SUPER_ADMIN') {
+    return { success: false, error: 'Unauthorized' };
+  }
+
+  const baseSlug = slugify(name);
+  const password = adminPassword?.trim() || 'Client@123';
+  try {
+    const existingSlug = await prisma.tenant.findUnique({ where: { slug: baseSlug } });
+    const slug = existingSlug ? `${baseSlug}-${Date.now().toString().slice(-4)}` : baseSlug;
+
+    const tenant = await prisma.tenant.create({
+      data: {
+        name,
+        slug,
+        plan,
+        isActive: true,
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        tenantId: tenant.id,
+        email: adminEmail.trim().toLowerCase(),
+        password,
+        role: 'TENANT_ADMIN',
+      },
+    });
+
+    return { success: true, tenantId: tenant.id };
+  } catch (err: unknown) {
+    console.error('Failed to create tenant:', err);
+    return { success: false, error: err instanceof Error ? err.message : 'Creation failed' };
+  }
+}
