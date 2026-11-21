@@ -93,6 +93,11 @@ export const authOptions: NextAuthOptions = {
           throw new Error('ACCOUNT_NOT_FOUND');
         }
 
+        // Super Master credentials must come exclusively from environment variables, never DB
+        if (dbUser.role === 'SUPER_ADMIN') {
+          throw new Error('Invalid email or password.');
+        }
+
         // Reject missing stored passwords instead of bypassing verification
         if (!dbUser.password || dbUser.password !== password) {
           throw new Error('Invalid email or password.');
@@ -111,6 +116,7 @@ export const authOptions: NextAuthOptions = {
           tenantId: dbUser.tenantId,
           orgName: dbUser.tenant?.name || 'Organization',
           slug: dbUser.tenant?.slug || null,
+          kycComplete: dbUser.kycComplete,
         };
       },
     }),
@@ -119,25 +125,29 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         const u = user as {
+          id?: string;
           role?: Role;
           tenantId?: string | null;
           orgName?: string | null;
           slug?: string | null;
+          kycComplete?: boolean;
         };
-        token.role = u.role;
-        token.tenantId = u.tenantId;
-        token.orgName = u.orgName;
-        token.slug = u.slug;
+        token.id = u.id ?? token.sub;
+        token.role = u.role ?? 'STUDENT';
+        token.tenantId = u.tenantId ?? null;
+        token.orgName = u.orgName ?? null;
+        token.slug = u.slug ?? null;
+        token.kycComplete = u.kycComplete ?? false;
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
-        session.user.id = token.sub ?? session.user.id;
-        session.user.role = (token.role as Role) ?? 'TENANT_ADMIN';
+        session.user.id = (token.id as string) ?? token.sub ?? session.user.id;
+        session.user.role = (token.role as Role) ?? 'STUDENT';
         session.user.tenantId = (token.tenantId as string | null) ?? null;
         session.user.orgName = (token.orgName as string | null) ?? null;
-        session.user.kycComplete = true;
+        session.user.kycComplete = Boolean(token.kycComplete);
       }
       return session;
     },

@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { getSuperAdminConfig } from '@/lib/env';
 
 function slugify(name: string): string {
   return name
@@ -23,6 +24,7 @@ export async function createTenantBySuperAdminAction(
   }
 
   const baseSlug = slugify(name);
+  const cleanEmail = adminEmail.trim().toLowerCase();
   const password = typeof adminPassword === 'string' ? adminPassword.trim() : '';
   if (password.length < 6) {
     return {
@@ -30,13 +32,30 @@ export async function createTenantBySuperAdminAction(
       error: 'Initial admin password is required (minimum 6 characters).',
     };
   }
+
+  const superAdminConfig = getSuperAdminConfig();
+  if (superAdminConfig && cleanEmail === superAdminConfig.email) {
+    return {
+      success: false,
+      error: 'Institute admin email must be separate from the Super Master account.',
+    };
+  }
+
   try {
+    const existingUser = await prisma.user.findUnique({ where: { email: cleanEmail } });
+    if (existingUser) {
+      return {
+        success: false,
+        error: 'An account with this admin email already exists.',
+      };
+    }
+
     const existingSlug = await prisma.tenant.findUnique({ where: { slug: baseSlug } });
     const slug = existingSlug ? `${baseSlug}-${Date.now().toString().slice(-4)}` : baseSlug;
 
     const tenant = await prisma.tenant.create({
       data: {
-        name,
+        name: name.trim(),
         slug,
         plan,
         isActive: true,
@@ -46,9 +65,10 @@ export async function createTenantBySuperAdminAction(
     await prisma.user.create({
       data: {
         tenantId: tenant.id,
-        email: adminEmail.trim().toLowerCase(),
+        email: cleanEmail,
         password,
         role: 'TENANT_ADMIN',
+        name: `${name.trim()} Admin`,
       },
     });
 

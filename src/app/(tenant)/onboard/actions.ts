@@ -1,6 +1,7 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
+import { getSuperAdminConfig } from '@/lib/env';
 
 function slugify(name: string): string {
   return name
@@ -25,6 +26,15 @@ export async function createTenantAction(
     return {
       success: false,
       error: 'Admin password must be at least 6 characters.',
+      redirectTo: '/onboard',
+    };
+  }
+
+  const superAdminConfig = getSuperAdminConfig();
+  if (superAdminConfig && cleanEmail === superAdminConfig.email) {
+    return {
+      success: false,
+      error: 'This email is reserved. Please use a different organization admin email.',
       redirectTo: '/onboard',
     };
   }

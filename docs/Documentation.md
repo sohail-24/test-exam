@@ -17,10 +17,10 @@
 
 | Module / Feature | Status | Details from Codebase |
 |---|---|---|
-| **Root Landing Page (`/`)** | **Unimplemented (Boilerplate)** | `src/app/page.tsx` is still the default `create-next-app` template page. |
+| **Root Landing Page (`/`)** | **Implemented** | LopyTech SaaS landing page with brand introduction and navigation to `/login`, `/onboard`, and `/exam/demo`. |
 | **Client Self-Onboarding (`/onboard`)** | **Partially Implemented** | Collects org name, admin email, password, and plan (`starter`/`pro`/`enterprise`), creates `Tenant` + `TENANT_ADMIN` user. Payment step is UI-only ("Razorpay Test Mode"). |
-| **Client / Unified Login (`/login`)** | **Implemented (Credentials only)** | Authenticates `TENANT_ADMIN`, `STUDENT`, and `SUPER_ADMIN` via NextAuth `'credentials'` provider. Google OAuth is configured in `auth.ts` but has no UI button. |
-| **Super Admin Login (`/super-admin/login`)** | **Broken** | Form calls `signIn('super-admin-credentials', ...)` which is not defined in `src/lib/auth.ts` (only `'credentials'` exists). |
+| **Client / Unified Login (`/login`)** | **Implemented (Credentials only)** | Authenticates `TENANT_ADMIN`, `STUDENT`, and `SUPER_ADMIN` via NextAuth `'credentials'` provider. Google OAuth is configured in `auth.ts` when env vars are set, with no UI button. |
+| **Super Admin Login (`/super-admin/login`)** | **Implemented** | Signs in exclusively against `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD` env vars (`portal: 'super-admin'`) and surfaces safe config errors if unset. |
 | **Super Admin Dashboard (`/super-admin`)** | **Implemented** | Protected by `SUPER_ADMIN` role check. Displays total tenants, exams, results, and tenant table. |
 | **Super Admin Tenant CRUD (`/super-admin/tenants/*`)** | **Implemented** | Create new tenant + admin user; view tenant details; change plan; activate/deactivate tenant; delete tenant. |
 | **Tenant Admin Dashboard (`/admin`)** | **Implemented (Unprotected)** | Displays exam count, student count, submission count, and up to 5 recent exams with Exam Link & QR Code links. Missing auth guard. |
@@ -40,7 +40,7 @@
 Defined in `prisma/schema.prisma` (`enum Role`):
 
 1. **`SUPER_ADMIN`** (`User.tenantId = null`)
-   - Configured via `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD` env vars (with fallback defaults in `src/lib/auth.ts`).
+   - Configured exclusively via `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD` env vars (no hardcoded fallbacks; never stored in the `User` table).
    - Can access `/super-admin`, `/super-admin/tenants/new`, and `/super-admin/tenants/[id]` to view platform-wide metrics and create/update/toggle/delete tenants.
    - Server actions in `src/app/super-admin/tenants/*/actions.ts` strictly verify `session?.user?.role === 'SUPER_ADMIN'`.
 
@@ -123,7 +123,7 @@ Defined in `prisma/schema.prisma` (`enum Role`):
 
 | Route | Component Type | Access / Auth Behavior | Purpose |
 |---|---|---|---|
-| `/` | Server | Public | Default `create-next-app` page |
+| `/` | Server | Public | LopyTech SaaS landing page linking to `/login`, `/onboard`, `/exam/demo` |
 | `/login` | Server + Client | Redirects if signed in | Tenant Admin / Student / Super Admin credentials login |
 | `/onboard` | Client | Public | 3-step self-serve Tenant registration + UI-only plan checkout |
 | `/admin` | Server | **No auth guard** (`?tenant=`) | Tenant metrics & recent exams |
@@ -133,9 +133,9 @@ Defined in `prisma/schema.prisma` (`enum Role`):
 | `/exam/[examId]` | Server + Client | Public | Student exam portal (`/exam/demo` or DB exam ID) |
 | `/student/kyc` | Server + Client | Public (uses `'demo-student'` fallback) | Legacy 2-step KYC form |
 | `/student/exam/[examId]` | Server | Session + KYC required (except `demo`) | Legacy authenticated exam route |
-| `/super-admin/login` | Client | Public | Super Admin login UI (broken provider ID) |
+| `/super-admin/login` | Client | Public | Super Master credentials login UI |
 | `/super-admin` | Server | `SUPER_ADMIN` required | Platform overview & tenant list |
-| `/super-admin/tenants/new` | Client | `SUPER_ADMIN` (in action) | Provision new tenant & admin credentials |
+| `/super-admin/tenants/new` | Server + Client | `SUPER_ADMIN` required | Provision new tenant & admin credentials |
 | `/super-admin/tenants/[id]` | Server + Client | `SUPER_ADMIN` required | Tenant detail, plan/status toggles, delete |
 | `/api/auth/[...nextauth]` | Route Handler | Public | NextAuth `GET`/`POST` endpoints (`session`, `signin`, `signout`, etc.) |
 

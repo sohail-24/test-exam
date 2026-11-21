@@ -14,8 +14,8 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Exam Portal",
-  description: "Unified SaaS Exam Portal",
+  title: "LopyTech Exam Portal",
+  description: "Multi-tenant online examination platform for institutes and educators.",
   colorScheme: "only light",
 };
 
