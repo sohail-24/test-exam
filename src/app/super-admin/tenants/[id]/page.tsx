@@ -3,7 +3,7 @@ import { authOptions } from '@/lib/auth';
 import { redirect, notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import Link from 'next/link';
-import { ArrowLeft, Building2, BookOpen, Users, CheckCircle2, XCircle } from 'lucide-react';
+import { ArrowLeft, Building2, BookOpen, Users, CheckCircle2 } from 'lucide-react';
 import TenantManageClient from './TenantManageClient';
 
 export default async function TenantDetailPage({ params }: { params: { id: string } }) {

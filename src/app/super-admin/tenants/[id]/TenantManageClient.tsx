@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, Trash2, Power, ShieldAlert } from 'lucide-react';
+import { Loader2, Trash2, Power } from 'lucide-react';
 import { toggleTenantStatusAction, updateTenantPlanAction, deleteTenantAction } from './actions';
 
 interface Props {

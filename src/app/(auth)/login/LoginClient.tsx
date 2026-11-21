@@ -87,7 +87,7 @@ export default function LoginClient({ initialEmail = '', justRegistered = false 
               <div className="text-xs">
                 <strong className="font-semibold">Portal Not Found:</strong>
                 <p className="mt-0.5 text-amber-800">
-                  No organization portal exists for <code className="font-mono font-bold">{email}</code>. If Super Admin hasn't provisioned your institute, you can register and pick a subscription plan below.
+                  No organization portal exists for <code className="font-mono font-bold">{email}</code>. If Super Admin hasn&apos;t provisioned your institute, you can register and pick a subscription plan below.
                 </p>
               </div>
             </div>
@@ -151,7 +151,7 @@ export default function LoginClient({ initialEmail = '', justRegistered = false 
         {/* Divider & Registration Link */}
         <div className="pt-2 border-t border-slate-100 space-y-3 text-center">
           <p className="text-xs text-slate-500">
-            Don't have an exam portal yet?
+            Don&apos;t have an exam portal yet?
           </p>
           <Link
             href="/onboard"

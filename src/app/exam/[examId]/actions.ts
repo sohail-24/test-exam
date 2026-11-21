@@ -41,7 +41,6 @@ export async function getExamForStudent(examId: string) {
 }
 
 export async function registerStudentAndStartExamAction(formData: FormData) {
-  const examId = formData.get('examId') as string;
   const tenantId = formData.get('tenantId') as string;
   const name = ((formData.get('name') as string) || '').trim();
   const mobile = ((formData.get('mobile') as string) || '').trim();
