@@ -326,10 +326,10 @@ erDiagram
 ### Implemented Auth Setup (`src/lib/auth.ts`)
 - **Adapter & Session:** `PrismaAdapter(prisma)` with `session: { strategy: 'jwt' }`.
 - **Providers:**
-  1. `GoogleProvider`: Configured with `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` (defaults to dummy strings if unset). **Not wired into any login UI button.**
+  1. `GoogleProvider`: Registered conditionally via `getGoogleOAuthConfig()` only when both `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are configured. **Not wired into any login UI button.**
   2. `CredentialsProvider` (`id: 'credentials'`):
-     - **Path A (Super Admin):** Compares `email` and `password` against `process.env.SUPER_ADMIN_EMAIL` (fallback `admin@lopytech.com`) and `process.env.SUPER_ADMIN_PASSWORD` (fallback `LopyAdmin@2026`). Returns synthetic user `{ id: 'super-admin', role: 'SUPER_ADMIN', tenantId: null }`.
-     - **Path B (Database Users — Tenant Admin / Student):** Queries `prisma.user.findUnique({ where: { email }, include: { tenant: true } })`. Throws `'ACCOUNT_NOT_FOUND'` if missing. Compares `dbUser.password !== password` (plaintext). Rejects login if `dbUser.tenant && !dbUser.tenant.isActive`.
+     - **Path A (Super Admin):** Reads `SUPER_ADMIN_EMAIL` and `SUPER_ADMIN_PASSWORD` via `getSuperAdminConfig()` (no hardcoded fallbacks). When `portal: 'super-admin'` is passed and env vars are unset, throws a clear configuration error.
+     - **Path B (Database Users — Tenant Admin / Student):** Queries `prisma.user.findUnique({ where: { email }, include: { tenant: true } })`. Throws `'ACCOUNT_NOT_FOUND'` if missing. Rejects missing `dbUser.password` or mismatches (`!dbUser.password || dbUser.password !== password`, plaintext). Rejects login if `dbUser.tenant && !dbUser.tenant.isActive`.
 - **JWT & Session Callbacks:** Embeds `role`, `tenantId`, `orgName`, and `slug` in the JWT; attaches `id`, `role` (defaults to `'TENANT_ADMIN'`), `tenantId`, `orgName`, and `kycComplete` (hardcoded `true`) to `session.user`.
 
 ### Authentication Flow Diagram
@@ -343,9 +343,8 @@ sequenceDiagram
     participant DB as "Prisma (User + Tenant)"
 
     User->>SALoginUI: Submit Super Admin form
-    SALoginUI->>NextAuth: signIn("super-admin-credentials", ...)
-    Note over SALoginUI,NextAuth: BUG: Provider ID does not exist (only "credentials" exists)
-    NextAuth-->>SALoginUI: Error (login fails)
+    SALoginUI->>NextAuth: signIn("credentials", { email, password, portal: "super-admin" })
+    NextAuth-->>SALoginUI: Config error if env unset, or JWT on match
 
     User->>LoginUI: Submit email + password
     LoginUI->>NextAuth: signIn("credentials", { email, password })
@@ -451,10 +450,8 @@ sequenceDiagram
 ## 12. Security Architecture & Known Concerns
 
 1. **Missing Auth & Tenant Isolation on `/admin/*`:** `/admin`, `/admin/students`, `/admin/results`, `/admin/exams/new`, and `saveExamAction` do **not** verify an authenticated `TENANT_ADMIN` session and accept `tenant` directly from URL query params / client arguments.
-2. **Broken Super Admin Login Page:** `/super-admin/login` calls `signIn('super-admin-credentials', ...)`, which does not exist in `src/lib/auth.ts`.
-3. **Plaintext Passwords & Null-Password Bypass:** `User.password` is stored and compared in plaintext (`dbUser.password !== password`). If `dbUser.password` is `null`, the comparison short-circuits and allows login with any password.
-4. **Hardcoded Fallback Credentials:** `src/lib/auth.ts` falls back to `'admin@lopytech.com'` / `'LopyAdmin@2026'` when `SUPER_ADMIN_EMAIL`/`SUPER_ADMIN_PASSWORD` are unset; `onboard/actions.ts` and `super-admin/tenants/new/actions.ts` fall back to `'Client@123'`.
-5. **Publicly Exposed KYC Documents:** Aadhaar uploads and selfies are saved inside `/public/uploads/`, making sensitive PII documents directly downloadable over HTTP without authentication.
+2. **Plaintext Password Storage:** `User.password` is still stored and compared in plaintext until password hashing is implemented (though hardcoded credential fallbacks and null-password bypasses have been eliminated in S1).
+3. **Publicly Exposed KYC Documents:** Aadhaar uploads and selfies are saved inside `/public/uploads/`, making sensitive PII documents directly downloadable over HTTP without authentication.
 6. **Unimplemented Payment Gate:** Exams marked `isFree: false` with a `price` can be accessed and submitted without payment verification.
 7. **Unverified `tenantId` Scoping on Student Mobile Registration:** `registerStudentAndStartExamAction` queries `user.findFirst({ where: { email: '${mobile}@exam.student' } })` globally rather than scoping to `tenantId`, risking cross-tenant student collisions.
 

@@ -4,20 +4,36 @@ import CredentialsProvider from 'next-auth/providers/credentials';
 import { PrismaAdapter } from '@next-auth/prisma-adapter';
 import { prisma } from '@/lib/prisma';
 import { Role } from '@prisma/client';
+import {
+  getGoogleOAuthConfig,
+  getNextAuthSecret,
+  getSuperAdminConfig,
+  validateServerEnv,
+} from '@/lib/env';
+
+validateServerEnv();
+
+const googleOAuthConfig = getGoogleOAuthConfig();
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
+  secret: getNextAuthSecret(),
   providers: [
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID || 'dummy-google-id',
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET || 'dummy-google-secret',
-    }),
+    ...(googleOAuthConfig
+      ? [
+          GoogleProvider({
+            clientId: googleOAuthConfig.clientId,
+            clientSecret: googleOAuthConfig.clientSecret,
+          }),
+        ]
+      : []),
     CredentialsProvider({
       id: 'credentials',
       name: 'Email & Password',
       credentials: {
         email: { label: 'Email', type: 'email' },
         password: { label: 'Password', type: 'password' },
+        portal: { label: 'Portal', type: 'text' },
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
@@ -26,24 +42,48 @@ export const authOptions: NextAuthOptions = {
 
         const email = credentials.email.trim().toLowerCase();
         const password = credentials.password;
+        const superAdminConfig = getSuperAdminConfig();
 
-        // 1. Check Super Admin credentials
-        const superAdminEmail = (process.env.SUPER_ADMIN_EMAIL || 'admin@lopytech.com').toLowerCase();
-        const superAdminPassword = process.env.SUPER_ADMIN_PASSWORD || 'LopyAdmin@2026';
+        // 1. Dedicated Super Admin login portal flow
+        if (credentials.portal === 'super-admin') {
+          if (!superAdminConfig) {
+            throw new Error(
+              'Super Admin authentication is not configured. Set SUPER_ADMIN_EMAIL and SUPER_ADMIN_PASSWORD in your environment.',
+            );
+          }
 
-        if (email === superAdminEmail && password === superAdminPassword) {
-          return {
-            id: 'super-admin',
-            email: superAdminEmail,
-            name: 'Super Admin',
-            role: 'SUPER_ADMIN' as Role,
-            tenantId: null,
-            orgName: 'LopyTech Master',
-            slug: null,
-          };
+          if (email === superAdminConfig.email && password === superAdminConfig.password) {
+            return {
+              id: 'super-admin',
+              email: superAdminConfig.email,
+              name: 'Super Admin',
+              role: 'SUPER_ADMIN' as Role,
+              tenantId: null,
+              orgName: 'LopyTech Master',
+              slug: null,
+            };
+          }
+
+          throw new Error('Invalid super admin credentials.');
         }
 
-        // 2. Check Client (Tenant Admin) or Student credentials from database
+        // 2. Check Super Admin credentials when signing in via unified /login
+        if (superAdminConfig && email === superAdminConfig.email) {
+          if (password === superAdminConfig.password) {
+            return {
+              id: 'super-admin',
+              email: superAdminConfig.email,
+              name: 'Super Admin',
+              role: 'SUPER_ADMIN' as Role,
+              tenantId: null,
+              orgName: 'LopyTech Master',
+              slug: null,
+            };
+          }
+          throw new Error('Invalid email or password.');
+        }
+
+        // 3. Check Client (Tenant Admin) or Student credentials from database
         const dbUser = await prisma.user.findUnique({
           where: { email },
           include: { tenant: true },
@@ -53,8 +93,8 @@ export const authOptions: NextAuthOptions = {
           throw new Error('ACCOUNT_NOT_FOUND');
         }
 
-        // Check password match (plain text or fallback)
-        if (dbUser.password && dbUser.password !== password) {
+        // Reject missing stored passwords instead of bypassing verification
+        if (!dbUser.password || dbUser.password !== password) {
           throw new Error('Invalid email or password.');
         }
 

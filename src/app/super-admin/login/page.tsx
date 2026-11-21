@@ -17,16 +17,17 @@ export default function SuperAdminLoginPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    const res = await signIn('super-admin-credentials', {
+    const res = await signIn('credentials', {
       email,
       password,
+      portal: 'super-admin',
       redirect: false,
     });
     setLoading(false);
     if (res?.ok) {
       router.push('/super-admin');
     } else {
-      setError('Invalid super admin credentials.');
+      setError(res?.error || 'Invalid super admin credentials.');
     }
   };
 
@@ -51,7 +52,7 @@ export default function SuperAdminLoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              placeholder="admin@lopytech.com"
+              placeholder="admin@yourdomain.com"
               className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800"
             />
           </div>

@@ -12,14 +12,22 @@ function slugify(name: string): string {
 export async function createTenantAction(
   orgName: string,
   adminEmail: string,
-  password?: string,
+  password: string,
   plan?: string,
 ): Promise<{ redirectTo: string; success: boolean; error?: string }> {
   const baseSlug = slugify(orgName);
   let tenantId = 'demo-tenant';
   const cleanEmail = adminEmail.trim().toLowerCase();
-  const userPassword = password?.trim() || 'Client@123';
+  const userPassword = typeof password === 'string' ? password.trim() : '';
   const chosenPlan = plan || 'starter';
+
+  if (userPassword.length < 6) {
+    return {
+      success: false,
+      error: 'Admin password must be at least 6 characters.',
+      redirectTo: '/onboard',
+    };
+  }
 
   try {
     // Check if email already exists

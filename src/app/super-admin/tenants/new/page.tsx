@@ -10,7 +10,7 @@ export default function NewTenantPage() {
   const router = useRouter();
   const [name, setName] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
-  const [adminPassword, setAdminPassword] = useState('Client@123');
+  const [adminPassword, setAdminPassword] = useState('');
   const [plan, setPlan] = useState('starter');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -86,12 +86,13 @@ export default function NewTenantPage() {
                 Initial Admin Password
               </label>
               <input
-                type="text"
+                type="password"
                 required
+                minLength={6}
                 value={adminPassword}
                 onChange={(e) => setAdminPassword(e.target.value)}
-                placeholder="Client@123"
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 font-mono"
+                placeholder="Minimum 6 characters"
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800"
               />
               <p className="text-[11px] text-slate-400 mt-1">Client will use this password to sign in</p>
             </div>

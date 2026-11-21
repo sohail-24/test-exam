@@ -60,7 +60,7 @@ Defined in `prisma/schema.prisma` (`enum Role`):
 
 ### Super Admin (`/super-admin`)
 - **Dashboard (`/super-admin`):** Server-rendered overview showing counts for Total Tenants, Total Exams, Total Results, and a table of all tenants (Org Name, Slug, Plan, Status, Created date, Manage link).
-- **Create Tenant (`/super-admin/tenants/new`):** Form for Organization Name, Tenant Admin Email, Initial Admin Password (defaults to `'Client@123'`), and Subscription Plan (`starter`, `pro`, `enterprise`). Auto-generates a unique slug.
+- **Create Tenant (`/super-admin/tenants/new`):** Form for Organization Name, Tenant Admin Email, Initial Admin Password (explicitly required, minimum 6 characters), and Subscription Plan (`starter`, `pro`, `enterprise`). Auto-generates a unique slug.
 - **Manage Tenant (`/super-admin/tenants/[id]`):** Displays tenant metrics (Users, Exams, Submissions), Exams list, Users list, and `TenantManageClient` controls to switch plans, toggle `isActive` (blocks tenant login when inactive), or delete the tenant (`CASCADE`).
 
 ### Client / Tenant Admin (`/admin`)
@@ -167,18 +167,22 @@ npm run dev
 
 ## 10. Environment Variable Reference (`.env.example`)
 
+Server-side environment variables are validated in `src/lib/env.ts` (Zod schema + runtime distinction between build, local development/demo mode, and production runtime).
+
 | Variable | Required? | Purpose & Code References |
 |---|---|---|
-| `DATABASE_URL` | Required for persistence | PostgreSQL connection string (`prisma/schema.prisma`, `src/lib/prisma.ts`) |
-| `NEXTAUTH_SECRET` | Required in production | JWT signing secret used internally by NextAuth |
+| `NODE_ENV` | Optional (`development`) | Runtime mode (`development`, `test`, `production`) |
+| `DATABASE_URL` | Required in production; optional in dev/demo | PostgreSQL/Neon connection string (`prisma/schema.prisma`, `src/lib/prisma.ts`) |
+| `NEXTAUTH_SECRET` | Required in production | JWT signing secret (`src/lib/env.ts`, `src/lib/auth.ts`); dev uses ephemeral per-process fallback if unset |
 | `NEXTAUTH_URL` | Required in production | Canonical base URL for NextAuth callbacks (e.g., `http://localhost:3000`) |
-| `SUPER_ADMIN_EMAIL` | Recommended | Super Admin login email (`src/lib/auth.ts`; has a hardcoded fallback if unset) |
-| `SUPER_ADMIN_PASSWORD` | Recommended | Super Admin login password (`src/lib/auth.ts`; has a hardcoded fallback if unset) |
-| `GOOGLE_CLIENT_ID` | Optional | Google OAuth client ID (`src/lib/auth.ts`; unused in current UI) |
+| `SUPER_ADMIN_EMAIL` | Required for Super Admin | Super Admin login email (`src/lib/env.ts`, `src/lib/auth.ts`; no hardcoded fallback) |
+| `SUPER_ADMIN_PASSWORD` | Required for Super Admin | Super Admin login password (`src/lib/env.ts`, `src/lib/auth.ts`; no hardcoded fallback) |
+| `GOOGLE_CLIENT_ID` | Optional | Google OAuth client ID (`src/lib/auth.ts`; provider registered only when both ID & secret are set) |
 | `GOOGLE_CLIENT_SECRET` | Optional | Google OAuth client secret (`src/lib/auth.ts`; unused in current UI) |
-| `NEXT_PUBLIC_RAZORPAY_KEY_ID` | Unused | Reserved for client-side Razorpay checkout |
-| `RAZORPAY_KEY_ID` | Unused | Reserved for server-side Razorpay API |
-| `RAZORPAY_KEY_SECRET` | Unused | Reserved for server-side Razorpay signature verification |
+| `NEXT_PUBLIC_RAZORPAY_KEY_ID` | Optional (unused) | Reserved for client-side Razorpay checkout |
+| `RAZORPAY_KEY_ID` | Optional (unused) | Reserved for server-side Razorpay API |
+| `RAZORPAY_KEY_SECRET` | Optional (unused) | Reserved for server-side Razorpay signature verification |
+| `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_BUCKET_NAME` | Future | Reserved for future Cloudflare R2 document storage migration |
 
 ---
 
@@ -234,11 +238,10 @@ npm run start
 
 ## 14. Known Bugs, Incomplete Features & Technical Debt
 
-1. **Super Admin Login Provider Mismatch:** `/super-admin/login/page.tsx` calls `signIn('super-admin-credentials', ...)` instead of `'credentials'`, causing all logins from `/super-admin/login` to fail.
-2. **Broken Redirect to `/student/results/[id]`:** Both `src/app/(dashboard)/student/exam/[examId]/page.tsx` and `actions.ts` redirect to `/student/results/[id]`, which does not exist.
-3. **`ExamUI.tsx` Initial Render `timeRemaining === 0` Hazard:** `useExamStore` defaults `timeRemaining` to `0`. On first mount (when no `'exam-state'` exists in `localStorage`), the auto-submit `useEffect` reads `timeRemaining === 0` from the initial render closure and can trigger `handleSubmit()` before `hydrateExam` re-renders.
-4. **Unauthenticated `/admin/*` Routes & Tenant Spoofing:** `/admin`, `/admin/students`, `/admin/results`, `/admin/exams/new`, and `saveExamAction` trust the `?tenant=` URL param / client argument without verifying session authentication or role ownership.
-5. **Plaintext Passwords & Null-Password Bypass:** Passwords are saved and checked in plaintext (`auth.ts` line 57), and users with `password: null` bypass the password check.
+1. **Broken Redirect to `/student/results/[id]`:** Both `src/app/(dashboard)/student/exam/[examId]/page.tsx` and `actions.ts` redirect to `/student/results/[id]`, which does not exist.
+2. **`ExamUI.tsx` Initial Render `timeRemaining === 0` Hazard:** `useExamStore` defaults `timeRemaining` to `0`. On first mount (when no `'exam-state'` exists in `localStorage`), the auto-submit `useEffect` reads `timeRemaining === 0` from the initial render closure and can trigger `handleSubmit()` before `hydrateExam` re-renders.
+3. **Unauthenticated `/admin/*` Routes & Tenant Spoofing:** `/admin`, `/admin/students`, `/admin/results`, `/admin/exams/new`, and `saveExamAction` trust the `?tenant=` URL param / client argument without verifying session authentication or role ownership.
+4. **Plaintext Password Storage:** Passwords in `User.password` are still stored and compared in plaintext until a dedicated password-hashing task (though hardcoded credential fallbacks and null-password bypasses have been removed).
 6. **Publicly Accessible PII Uploads:** Aadhaar documents and selfies saved to `/public/uploads/` are served as static public files without access control, and sample upload artifacts exist in git under `/public/uploads/`.
 7. **Demo Scoring Fallback Bug:** When an exam isn't found in DB (e.g., `/exam/demo`), `submitExamAnswersAction` scores any non-null selection as correct instead of evaluating actual correct answers.
 8. **Global Student Email Collision:** `registerStudentAndStartExamAction` looks up `<mobile>@exam.student` globally without filtering by `tenantId`.

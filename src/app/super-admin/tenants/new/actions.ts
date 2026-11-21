@@ -15,7 +15,7 @@ export async function createTenantBySuperAdminAction(
   name: string,
   adminEmail: string,
   plan: string,
-  adminPassword?: string,
+  adminPassword: string,
 ): Promise<{ success: boolean; error?: string; tenantId?: string }> {
   const session = await getServerSession(authOptions);
   if (session?.user?.role !== 'SUPER_ADMIN') {
@@ -23,7 +23,13 @@ export async function createTenantBySuperAdminAction(
   }
 
   const baseSlug = slugify(name);
-  const password = adminPassword?.trim() || 'Client@123';
+  const password = typeof adminPassword === 'string' ? adminPassword.trim() : '';
+  if (password.length < 6) {
+    return {
+      success: false,
+      error: 'Initial admin password is required (minimum 6 characters).',
+    };
+  }
   try {
     const existingSlug = await prisma.tenant.findUnique({ where: { slug: baseSlug } });
     const slug = existingSlug ? `${baseSlug}-${Date.now().toString().slice(-4)}` : baseSlug;
