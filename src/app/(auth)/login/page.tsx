@@ -14,9 +14,10 @@ export default async function LoginPage({
     if (session.user.role === 'SUPER_ADMIN') {
       redirect('/super-master');
     }
-    const tenantId = session.user.tenantId || 'demo-tenant';
-    const orgName = session.user.orgName || 'Portal';
-    redirect(`/admin?tenant=${tenantId}&org=${encodeURIComponent(orgName)}`);
+    if (session.user.role === 'TENANT_ADMIN' && session.user.tenantId) {
+      const orgName = session.user.orgName || 'Portal';
+      redirect(`/admin?tenant=${session.user.tenantId}&org=${encodeURIComponent(orgName)}`);
+    }
   }
 
   return (

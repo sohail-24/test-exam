@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import {
@@ -12,7 +11,6 @@ import {
   EyeOff,
   Loader2,
   AlertCircle,
-  ArrowLeft,
 } from 'lucide-react';
 
 export default function SuperMasterLoginClient() {
@@ -25,6 +23,7 @@ export default function SuperMasterLoginClient() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     setError(null);
 
     const trimmedEmail = email.trim().toLowerCase();
@@ -40,10 +39,10 @@ export default function SuperMasterLoginClient() {
 
     setLoading(true);
     try {
-      const res = await signIn('credentials', {
+      const res = await signIn('super-master', {
         email: trimmedEmail,
         password,
-        portal: 'super-master',
+        callbackUrl: '/super-master',
         redirect: false,
       });
 
@@ -52,7 +51,7 @@ export default function SuperMasterLoginClient() {
           const parsedUrl = new URL(res.url, window.location.origin);
           if (parsedUrl.searchParams.get('csrf') === 'true') {
             setError(
-              'Your browser blocked the login CSRF cookie (common in embedded preview iframes under Brave Shields or strict third-party cookie blocking). Open this app in a standalone browser tab or allow cookies for this site.',
+              'CSRF verification failed because the login cookie was missing or blocked. Ensure cookies are enabled for this site and try again.',
             );
             return;
           }
@@ -62,17 +61,20 @@ export default function SuperMasterLoginClient() {
       }
 
       if (res?.ok && !res?.error) {
-        const sessionRes = await fetch('/api/auth/session', { cache: 'no-store' });
+        const sessionRes = await fetch('/api/auth/session', {
+          cache: 'no-store',
+          credentials: 'same-origin',
+        });
         const session = await sessionRes.json().catch(() => null);
 
-        if (session?.user?.role === 'SUPER_ADMIN') {
+        if (session?.user?.role === 'SUPER_ADMIN' && session?.user?.tenantId === null) {
           router.replace('/super-master');
           router.refresh();
           return;
         }
 
         setError(
-          'Credentials were verified, but your browser blocked storing the session cookie (expected inside embedded cross-site iframes under Brave Shields or strict third-party cookie blocking). Open this app in a standalone browser tab or allow cookies for this site.',
+          'Credentials were verified, but your browser did not store the session cookie. Open this app in a standalone browser tab or allow cookies for this site.',
         );
         return;
       }
@@ -86,39 +88,23 @@ export default function SuperMasterLoginClient() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col justify-between bg-slate-950 text-slate-100 px-4 py-8 sm:px-6 font-[family-name:var(--font-geist-sans)]">
-      {/* Top Navigation */}
-      <div className="max-w-md w-full mx-auto flex items-center justify-between text-xs text-slate-400">
-        <Link
-          href="/home"
-          className="inline-flex items-center gap-1.5 hover:text-white transition-colors"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          Back to LopyTech
-        </Link>
-        <Link href="/login" className="hover:text-white transition-colors">
-          Institute Portal Login
-        </Link>
-      </div>
-
+    <div className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-100 px-4 py-8 sm:px-6 font-[family-name:var(--font-geist-sans)]">
       {/* Centered Login Card */}
-      <main className="w-full max-w-md mx-auto my-8">
+      <main className="w-full max-w-md mx-auto">
         <div className="bg-white text-slate-900 rounded-2xl border border-slate-200/80 shadow-2xl p-6 sm:p-8 space-y-6">
           {/* Brand Header */}
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-xl bg-slate-900 text-emerald-400 flex items-center justify-center shrink-0">
-                  <ShieldCheck className="w-6 h-6" />
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">
-                    LopyTech Platform
-                  </p>
-                  <h1 className="text-xl font-bold tracking-tight text-slate-900">
-                    Super Master Login
-                  </h1>
-                </div>
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-xl bg-slate-900 text-emerald-400 flex items-center justify-center shrink-0">
+                <ShieldCheck className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">
+                  LopyTech Platform
+                </p>
+                <h1 className="text-xl font-bold tracking-tight text-slate-900">
+                  Super Master Login
+                </h1>
               </div>
             </div>
 
@@ -220,21 +206,11 @@ export default function SuperMasterLoginClient() {
 
           <div className="pt-4 border-t border-slate-100 text-center">
             <p className="text-[11px] text-slate-500">
-              Restricted to the central Super Master account. Institute admins and students must
-              use the{' '}
-              <Link href="/login" className="font-semibold text-slate-700 hover:underline">
-                Institute Login
-              </Link>
-              .
+              Restricted portal. Access is limited exclusively to the authorized platform owner.
             </p>
           </div>
         </div>
       </main>
-
-      {/* Quiet Footer */}
-      <footer className="max-w-md w-full mx-auto text-center text-[11px] text-slate-500">
-        LopyTech Multi-Tenant Examination Platform
-      </footer>
     </div>
   );
 }

@@ -2,12 +2,18 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 const SESSION_COOKIE_NAMES = [
-  'next-auth.session-token',
   '__Secure-next-auth.session-token',
+  'next-auth.session-token',
 ];
 
 function hasSessionCookie(req: NextRequest): boolean {
-  return SESSION_COOKIE_NAMES.some((name) => Boolean(req.cookies.get(name)?.value));
+  return req.cookies.getAll().some(
+    (cookie) =>
+      Boolean(cookie.value) &&
+      SESSION_COOKIE_NAMES.some(
+        (name) => cookie.name === name || cookie.name.startsWith(`${name}.`),
+      ),
+  );
 }
 
 export function middleware(req: NextRequest) {

@@ -9,6 +9,7 @@ const serverEnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   DATABASE_URL: z.string().trim().min(1).optional(),
   NEXTAUTH_URL: z.string().trim().url().optional(),
+  APP_URL: z.string().trim().url().optional(),
   NEXTAUTH_SECRET: z.string().trim().min(1).optional(),
   SUPER_ADMIN_EMAIL: z.string().trim().email().optional(),
   SUPER_ADMIN_PASSWORD: z.string().min(1).optional(),
@@ -44,6 +45,7 @@ export function getParsedServerEnv(): ServerEnv {
     NODE_ENV: process.env.NODE_ENV,
     DATABASE_URL: normalizeEmptyEnv(process.env.DATABASE_URL),
     NEXTAUTH_URL: normalizeEmptyEnv(process.env.NEXTAUTH_URL),
+    APP_URL: normalizeEmptyEnv(process.env.APP_URL),
     NEXTAUTH_SECRET: normalizeEmptyEnv(process.env.NEXTAUTH_SECRET),
     SUPER_ADMIN_EMAIL: normalizeEmptyEnv(process.env.SUPER_ADMIN_EMAIL),
     SUPER_ADMIN_PASSWORD: normalizeEmptyEnv(process.env.SUPER_ADMIN_PASSWORD),
@@ -65,6 +67,21 @@ export function getParsedServerEnv(): ServerEnv {
   return result.data;
 }
 
+/**
+ * Resolves the effective NextAuth base URL.
+ * Prefers explicitly configured NEXTAUTH_URL; falls back to platform-injected APP_URL
+ * (and populates process.env.NEXTAUTH_URL when unset) so NextAuth origin detection,
+ * callback URLs, and HTTPS cookie defaults stay consistent with the actual deployment origin.
+ */
+export function getEffectiveNextAuthUrl(): string | undefined {
+  const env = getParsedServerEnv();
+  const resolved = env.NEXTAUTH_URL ?? env.APP_URL;
+  if (!process.env.NEXTAUTH_URL && resolved) {
+    process.env.NEXTAUTH_URL = resolved;
+  }
+  return resolved;
+}
+
 export function validateServerEnv(): {
   valid: boolean;
   missing: string[];
@@ -77,7 +94,7 @@ export function validateServerEnv(): {
   if (isProductionRuntime()) {
     if (!env.DATABASE_URL) missing.push('DATABASE_URL');
     if (!env.NEXTAUTH_SECRET) missing.push('NEXTAUTH_SECRET');
-    if (!env.NEXTAUTH_URL) missing.push('NEXTAUTH_URL');
+    if (!env.NEXTAUTH_URL && !env.APP_URL) missing.push('NEXTAUTH_URL');
     if (!env.SUPER_ADMIN_EMAIL) missing.push('SUPER_ADMIN_EMAIL');
     if (!env.SUPER_ADMIN_PASSWORD) missing.push('SUPER_ADMIN_PASSWORD');
   } else if (!isBuildPhase()) {

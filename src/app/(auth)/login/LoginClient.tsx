@@ -21,6 +21,7 @@ export default function LoginClient({ initialEmail = '', justRegistered = false 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     setLoading(true);
     setError(null);
     setNotRegistered(false);
@@ -29,8 +30,23 @@ export default function LoginClient({ initialEmail = '', justRegistered = false 
       const res = await signIn('credentials', {
         email: email.trim().toLowerCase(),
         password,
+        callbackUrl: '/admin',
         redirect: false,
       });
+
+      if (res?.url) {
+        try {
+          const parsedUrl = new URL(res.url, window.location.origin);
+          if (parsedUrl.searchParams.get('csrf') === 'true') {
+            setError(
+              'CSRF verification failed because the login cookie was missing or blocked. Ensure cookies are enabled and try again.',
+            );
+            return;
+          }
+        } catch {
+          // Ignore malformed callback URL and continue normal checks
+        }
+      }
 
       if (res?.error) {
         if (res.error === 'ACCOUNT_NOT_FOUND' || res.error.includes('ACCOUNT_NOT_FOUND')) {
@@ -39,18 +55,26 @@ export default function LoginClient({ initialEmail = '', justRegistered = false 
           setError(res.error);
         }
       } else if (res?.ok) {
-        // Fetch session to determine destination
-        const sessionRes = await fetch('/api/auth/session');
-        const session = await sessionRes.json();
+        // Verify verified TENANT_ADMIN session before navigating
+        const sessionRes = await fetch('/api/auth/session', {
+          cache: 'no-store',
+          credentials: 'same-origin',
+        });
+        const session = await sessionRes.json().catch(() => null);
 
-        if (session?.user?.role === 'SUPER_ADMIN') {
-          router.push('/super-master');
-        } else {
-          const tenantId = session?.user?.tenantId || 'demo-tenant';
-          const orgName = session?.user?.orgName || 'Portal';
-          router.push(`/admin?tenant=${tenantId}&org=${encodeURIComponent(orgName)}`);
+        if (session?.user?.role === 'TENANT_ADMIN' && session?.user?.tenantId) {
+          const tenantId = session.user.tenantId;
+          const orgName = session.user.orgName || 'Portal';
+          router.replace(`/admin?tenant=${tenantId}&org=${encodeURIComponent(orgName)}`);
+          router.refresh();
+          return;
         }
-        router.refresh();
+
+        setError(
+          'Unable to verify an active institute administrator session. Ensure cookies are enabled and sign in with an institute admin account.',
+        );
+      } else {
+        setError('Invalid email or password.');
       }
     } catch {
       setError('An unexpected error occurred. Please try again.');
@@ -69,7 +93,7 @@ export default function LoginClient({ initialEmail = '', justRegistered = false 
           </div>
           <div>
             <h1 className="text-xl font-bold text-slate-900">Exam Portal Login</h1>
-            <p className="text-xs text-slate-500">Sign in to your client institute portal or super admin</p>
+            <p className="text-xs text-slate-500">Sign in to your institute administrator portal</p>
           </div>
         </div>
 

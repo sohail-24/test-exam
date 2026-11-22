@@ -12,11 +12,24 @@ export default async function SuperMasterDashboard() {
     redirect('/super-master-login');
   }
 
-  const [tenants, totalExams, totalResults] = await Promise.all([
-    prisma.tenant.findMany({ orderBy: { createdAt: 'desc' } }),
-    prisma.exam.count(),
-    prisma.result.count(),
-  ]);
+  let tenants: Awaited<ReturnType<typeof prisma.tenant.findMany>> = [];
+  let totalExams = 0;
+  let totalResults = 0;
+  let dbUnavailable = false;
+
+  try {
+    const [tenantRows, examCount, resultCount] = await Promise.all([
+      prisma.tenant.findMany({ orderBy: { createdAt: 'desc' } }),
+      prisma.exam.count(),
+      prisma.result.count(),
+    ]);
+    tenants = tenantRows;
+    totalExams = examCount;
+    totalResults = resultCount;
+  } catch (err) {
+    dbUnavailable = true;
+    console.error('[super-master] Database query failed:', err);
+  }
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -29,6 +42,17 @@ export default async function SuperMasterDashboard() {
       </header>
 
       <main className="max-w-6xl mx-auto p-6 space-y-6">
+        {dbUnavailable && (
+          <div
+            role="alert"
+            className="bg-amber-50 border border-amber-200 text-amber-900 text-xs sm:text-sm px-4 py-3 rounded-xl"
+          >
+            Database tables are not initialized or currently unreachable. Run{' '}
+            <code className="font-mono font-semibold">npx prisma db push</code> against your
+            configured PostgreSQL database to load tenant records.
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {[
             { label: 'Total Tenants', value: tenants.length, icon: Building2 },
