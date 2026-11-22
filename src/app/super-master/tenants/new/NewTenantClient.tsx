@@ -24,7 +24,7 @@ export default function NewTenantClient() {
     setSubmitting(false);
 
     if (res.success) {
-      router.push('/super-admin');
+      router.push('/super-master');
       router.refresh();
     } else {
       setError(res.error ?? 'Failed to create tenant.');
@@ -35,7 +35,7 @@ export default function NewTenantClient() {
     <div className="min-h-screen bg-slate-50 p-6">
       <div className="max-w-xl mx-auto space-y-6">
         <Link
-          href="/super-admin"
+          href="/super-master"
           className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800"
         >
           <ArrowLeft className="w-4 h-4" /> Back to Dashboard
@@ -94,11 +94,15 @@ export default function NewTenantClient() {
                 placeholder="Minimum 6 characters"
                 className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800"
               />
-              <p className="text-[11px] text-slate-400 mt-1">Client will use this password to sign in</p>
+              <p className="text-[11px] text-slate-400 mt-1">
+                Client will use this password to sign in
+              </p>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Subscription Plan</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Subscription Plan
+              </label>
               <select
                 value={plan}
                 onChange={(e) => setPlan(e.target.value)}

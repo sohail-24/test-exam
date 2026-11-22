@@ -12,7 +12,7 @@ export default async function LoginPage({
 
   if (session?.user) {
     if (session.user.role === 'SUPER_ADMIN') {
-      redirect('/super-admin');
+      redirect('/super-master');
     }
     const tenantId = session.user.tenantId || 'demo-tenant';
     const orgName = session.user.orgName || 'Portal';

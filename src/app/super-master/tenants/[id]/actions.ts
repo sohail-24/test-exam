@@ -7,37 +7,43 @@ import { revalidatePath } from 'next/cache';
 
 export async function toggleTenantStatusAction(tenantId: string, currentStatus: boolean) {
   const session = await getServerSession(authOptions);
-  if (session?.user?.role !== 'SUPER_ADMIN') throw new Error('Unauthorized');
+  if (!session?.user || session.user.role !== 'SUPER_ADMIN') {
+    throw new Error('Unauthorized');
+  }
 
   await prisma.tenant.update({
     where: { id: tenantId },
     data: { isActive: !currentStatus },
   });
 
-  revalidatePath(`/super-admin/tenants/${tenantId}`);
-  revalidatePath('/super-admin');
+  revalidatePath(`/super-master/tenants/${tenantId}`);
+  revalidatePath('/super-master');
 }
 
 export async function updateTenantPlanAction(tenantId: string, plan: string) {
   const session = await getServerSession(authOptions);
-  if (session?.user?.role !== 'SUPER_ADMIN') throw new Error('Unauthorized');
+  if (!session?.user || session.user.role !== 'SUPER_ADMIN') {
+    throw new Error('Unauthorized');
+  }
 
   await prisma.tenant.update({
     where: { id: tenantId },
     data: { plan },
   });
 
-  revalidatePath(`/super-admin/tenants/${tenantId}`);
-  revalidatePath('/super-admin');
+  revalidatePath(`/super-master/tenants/${tenantId}`);
+  revalidatePath('/super-master');
 }
 
 export async function deleteTenantAction(tenantId: string) {
   const session = await getServerSession(authOptions);
-  if (session?.user?.role !== 'SUPER_ADMIN') throw new Error('Unauthorized');
+  if (!session?.user || session.user.role !== 'SUPER_ADMIN') {
+    throw new Error('Unauthorized');
+  }
 
   await prisma.tenant.delete({
     where: { id: tenantId },
   });
 
-  revalidatePath('/super-admin');
+  revalidatePath('/super-master');
 }

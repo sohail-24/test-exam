@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 
@@ -16,7 +16,10 @@ const geistMono = localFont({
 export const metadata: Metadata = {
   title: "LopyTech Exam Portal",
   description: "Multi-tenant online examination platform for institutes and educators.",
-  colorScheme: "only light",
+};
+
+export const viewport: Viewport = {
+  colorScheme: "light",
 };
 
 export default function RootLayout({

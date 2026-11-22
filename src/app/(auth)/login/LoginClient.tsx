@@ -44,7 +44,7 @@ export default function LoginClient({ initialEmail = '', justRegistered = false 
         const session = await sessionRes.json();
 
         if (session?.user?.role === 'SUPER_ADMIN') {
-          router.push('/super-admin');
+          router.push('/super-master');
         } else {
           const tenantId = session?.user?.tenantId || 'demo-tenant';
           const orgName = session?.user?.orgName || 'Portal';
@@ -161,10 +161,10 @@ export default function LoginClient({ initialEmail = '', justRegistered = false 
           </Link>
           <div className="pt-1">
             <Link
-              href="/super-admin/login"
+              href="/super-master-login"
               className="inline-flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-600"
             >
-              <Shield className="w-3 h-3" /> Super Admin Portal Access
+              <Shield className="w-3 h-3" /> Super Master Portal Access
             </Link>
           </div>
         </div>

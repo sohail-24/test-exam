@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { NextAuthOptions } from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
 import CredentialsProvider from 'next-auth/providers/credentials';
@@ -15,10 +16,51 @@ validateServerEnv();
 
 const googleOAuthConfig = getGoogleOAuthConfig();
 
-export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
-  secret: getNextAuthSecret(),
-  providers: [
+function safeCompare(a: string, b: string): boolean {
+  const hashA = crypto.createHash('sha256').update(a).digest();
+  const hashB = crypto.createHash('sha256').update(b).digest();
+  return crypto.timingSafeEqual(hashA, hashB);
+}
+
+type HttpsCookieOptions = NonNullable<NextAuthOptions['cookies']>['sessionToken'] extends
+  | { options?: infer O }
+  | undefined
+  ? O & { partitioned?: boolean }
+  : never;
+
+function buildHttpsCookieOptions(): HttpsCookieOptions {
+  return {
+    httpOnly: true,
+    sameSite: 'none',
+    path: '/',
+    secure: true,
+    partitioned: true,
+  };
+}
+
+export function getAuthOptions(isHttps = false): NextAuthOptions {
+  const httpsCookieOptions = buildHttpsCookieOptions();
+
+  return {
+    adapter: PrismaAdapter(prisma),
+    secret: getNextAuthSecret(),
+    cookies: isHttps
+      ? {
+          sessionToken: {
+            name: 'next-auth.session-token',
+            options: httpsCookieOptions,
+          },
+          callbackUrl: {
+            name: 'next-auth.callback-url',
+            options: httpsCookieOptions,
+          },
+          csrfToken: {
+            name: 'next-auth.csrf-token',
+            options: httpsCookieOptions,
+          },
+        }
+      : undefined,
+    providers: [
     ...(googleOAuthConfig
       ? [
           GoogleProvider({
@@ -44,19 +86,22 @@ export const authOptions: NextAuthOptions = {
         const password = credentials.password;
         const superAdminConfig = getSuperAdminConfig();
 
-        // 1. Dedicated Super Admin login portal flow
-        if (credentials.portal === 'super-admin') {
+        // 1. Dedicated Super Master login portal flow (never falls back to DB users)
+        if (credentials.portal === 'super-master' || credentials.portal === 'super-admin') {
           if (!superAdminConfig) {
             throw new Error(
-              'Super Admin authentication is not configured. Set SUPER_ADMIN_EMAIL and SUPER_ADMIN_PASSWORD in your environment.',
+              'Super Master authentication is not configured. Set SUPER_ADMIN_EMAIL and SUPER_ADMIN_PASSWORD in your environment.',
             );
           }
 
-          if (email === superAdminConfig.email && password === superAdminConfig.password) {
+          if (
+            safeCompare(email, superAdminConfig.email) &&
+            safeCompare(password, superAdminConfig.password)
+          ) {
             return {
               id: 'super-admin',
               email: superAdminConfig.email,
-              name: 'Super Admin',
+              name: 'Super Master',
               role: 'SUPER_ADMIN' as Role,
               tenantId: null,
               orgName: 'LopyTech Master',
@@ -64,16 +109,16 @@ export const authOptions: NextAuthOptions = {
             };
           }
 
-          throw new Error('Invalid super admin credentials.');
+          throw new Error('Invalid Super Master credentials.');
         }
 
-        // 2. Check Super Admin credentials when signing in via unified /login
-        if (superAdminConfig && email === superAdminConfig.email) {
-          if (password === superAdminConfig.password) {
+        // 2. Check Super Master credentials when signing in via unified /login
+        if (superAdminConfig && safeCompare(email, superAdminConfig.email)) {
+          if (safeCompare(password, superAdminConfig.password)) {
             return {
               id: 'super-admin',
               email: superAdminConfig.email,
-              name: 'Super Admin',
+              name: 'Super Master',
               role: 'SUPER_ADMIN' as Role,
               tenantId: null,
               orgName: 'LopyTech Master',
@@ -152,15 +197,23 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
     async redirect({ url, baseUrl }) {
+      if (url.startsWith('/')) {
+        return `${baseUrl}${url}`;
+      }
       return url.startsWith(baseUrl) ? url : baseUrl;
     },
   },
-  pages: {
-    signIn: '/login',
-    error: '/login',
-  },
-  session: { strategy: 'jwt' },
-};
+    pages: {
+      signIn: '/login',
+      error: '/login',
+    },
+    session: { strategy: 'jwt' },
+  };
+}
+
+export const authOptions: NextAuthOptions = getAuthOptions(
+  process.env.NEXTAUTH_URL?.startsWith('https://') ?? false,
+);
 
 declare module 'next-auth' {
   interface Session {

@@ -42,13 +42,17 @@ export default function TenantManageClient({ tenantId, currentStatus, currentPla
   };
 
   const handleDelete = async () => {
-    if (!confirm('Are you sure you want to completely delete this tenant and all its data? This cannot be undone.')) {
+    if (
+      !confirm(
+        'Are you sure you want to completely delete this tenant and all its data? This cannot be undone.',
+      )
+    ) {
       return;
     }
     setLoadingDelete(true);
     try {
       await deleteTenantAction(tenantId);
-      router.push('/super-admin');
+      router.push('/super-master');
     } finally {
       setLoadingDelete(false);
     }
@@ -82,7 +86,11 @@ export default function TenantManageClient({ tenantId, currentStatus, currentPla
             : 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
         }`}
       >
-        {loadingStatus ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Power className="w-3.5 h-3.5" />}
+        {loadingStatus ? (
+          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+        ) : (
+          <Power className="w-3.5 h-3.5" />
+        )}
         {status ? 'Deactivate' : 'Activate'}
       </button>
 
@@ -92,7 +100,11 @@ export default function TenantManageClient({ tenantId, currentStatus, currentPla
         disabled={loadingDelete}
         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 transition-colors"
       >
-        {loadingDelete ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+        {loadingDelete ? (
+          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+        ) : (
+          <Trash2 className="w-3.5 h-3.5" />
+        )}
         Delete
       </button>
     </div>

@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getSuperAdminConfig } from '@/lib/env';
+import { revalidatePath } from 'next/cache';
 
 function slugify(name: string): string {
   return name
@@ -19,7 +20,7 @@ export async function createTenantBySuperAdminAction(
   adminPassword: string,
 ): Promise<{ success: boolean; error?: string; tenantId?: string }> {
   const session = await getServerSession(authOptions);
-  if (session?.user?.role !== 'SUPER_ADMIN') {
+  if (!session?.user || session.user.role !== 'SUPER_ADMIN') {
     return { success: false, error: 'Unauthorized' };
   }
 
@@ -72,6 +73,7 @@ export async function createTenantBySuperAdminAction(
       },
     });
 
+    revalidatePath('/super-master');
     return { success: true, tenantId: tenant.id };
   } catch (err: unknown) {
     console.error('Failed to create tenant:', err);
