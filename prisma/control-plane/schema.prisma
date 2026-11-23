@@ -1,0 +1,92 @@
+// Exam Portal — Control Plane Schema
+// Owns: Tenant registry, subscriptions, database credentials
+// Used by: Super Master portal only
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../node_modules/@prisma/client/control-plane"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Tenant ───────────────────────────────────────────────
+// Control Plane: Master tenant registry
+// Does NOT include user/exam data - that's in tenant databases
+model Tenant {
+  id                    String    @id @default(cuid())
+  name                  String
+  slug                  String    @unique
+  plan                  String    @default("starter")
+  status                String    @default("provisioning")
+  isActive              Boolean   @default(true)
+  razorpaySubscriptionId String?
+  databaseConfig        Json?     @db.JsonB // Encrypted connection details
+  domainConfig          Json?     @db.JsonB // Subdomain, custom domain, SSL
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([slug])
+  @@index([status])
+  @@index([isActive])
+}
+
+// ─── Super Admin User ─────────────────────────────────────
+// Control Plane: Platform-level Super Admin accounts only
+// (NOT tenant admin accounts - those live in tenant databases)
+enum Role {
+  SUPER_ADMIN
+  TENANT_ADMIN_PROXY  // For platform-level tenant management
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  password  String?
+  role      Role     @default(SUPER_ADMIN)
+  createdAt DateTime @default(now())
+
+  // Relations for NextAuth adapter models
+  accounts  Account[]
+  sessions  Session[]
+}
+
+// ─── NextAuth Adapter Models (Super Master only) ───────────
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}

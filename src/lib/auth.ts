@@ -63,6 +63,7 @@ function validateServerPortalContext(
   const referer = getHeaderValue(req?.headers, 'referer');
   const refererPath = extractPathname(referer);
 
+  // Validate host from referer if present
   if (referer) {
     const allowedHosts = new Set<string>();
     const forwardedHost = getHeaderValue(req?.headers, 'x-forwarded-host');
@@ -96,10 +97,16 @@ function validateServerPortalContext(
     }
   }
 
+  // Extract callback URL from request body
   const rawCallbackUrl = typeof req?.body?.callbackUrl === 'string' ? req.body.callbackUrl : null;
   const callbackPath = extractPathname(rawCallbackUrl);
 
+  // For portal context validation, we allow the request to proceed
+  // if there's no referer (which can happen with form submissions from client-side signIn)
+  // The callbackUrl validation below provides the main portal isolation
   if (portal === 'super-master') {
+    // Allow if no referer path (happens during programmatic signIn calls)
+    // or if referer is from super-master-login
     if (refererPath && refererPath !== '/super-master-login') {
       throw new Error('Super Master sign-in is only permitted from /super-master-login.');
     }
@@ -114,18 +121,21 @@ function validateServerPortalContext(
     return;
   }
 
-  if (refererPath && refererPath !== '/login') {
-    throw new Error('Institute sign-in is only permitted from /login.');
-  }
-  if (
-    callbackPath &&
-    (callbackPath === '/super-master-login' ||
-      callbackPath === '/super-master' ||
-      callbackPath.startsWith('/super-master/') ||
-      callbackPath === '/super-admin' ||
-      callbackPath.startsWith('/super-admin/'))
-  ) {
-    throw new Error('Institute sign-in cannot target the Super Master portal.');
+  if (portal === 'institute') {
+    // Allow if no referer path
+    if (refererPath && refererPath !== '/login') {
+      throw new Error('Institute sign-in is only permitted from /login.');
+    }
+    if (
+      callbackPath &&
+      (callbackPath === '/super-master-login' ||
+        callbackPath === '/super-master' ||
+        callbackPath.startsWith('/super-master/') ||
+        callbackPath === '/super-admin' ||
+        callbackPath.startsWith('/super-admin/'))
+    ) {
+      throw new Error('Institute sign-in cannot target the Super Master portal.');
+    }
   }
 }
 
@@ -133,6 +143,26 @@ export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
   secret: getNextAuthSecret(),
   useSecureCookies,
+  cookies: {
+    sessionToken: {
+      name: useSecureCookies ? '__Secure-next-auth.session-token' : 'next-auth.session-token',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: useSecureCookies,
+      },
+    },
+    csrfToken: {
+      name: useSecureCookies ? '__Secure-next-auth.csrf-token' : 'next-auth.csrf-token',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: useSecureCookies,
+      },
+    },
+  },
   providers: [
     ...(googleOAuthConfig
       ? [
@@ -307,9 +337,68 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
     async redirect({ url, baseUrl }) {
-      if (url.startsWith('/')) {
-        return `${baseUrl}${url}`;
+      // Parse the URL to check for error parameters
+      try {
+        const parsedUrl = new URL(url.startsWith('/') ? `${baseUrl}${url}` : url, baseUrl);
+
+        // Handle error redirects - redirect to appropriate portal's login page
+        const error = parsedUrl.searchParams.get('error');
+        const csrf = parsedUrl.searchParams.get('csrf');
+
+        if (error || csrf === 'true') {
+          // Determine which portal the user was trying to access
+          // based on the URL path itself (e.g., /super-master vs /admin)
+          // or the callbackUrl parameter
+          const callbackUrl = parsedUrl.searchParams.get('callbackUrl');
+
+          // Helper to build redirect URL with error params
+          const buildRedirect = (targetPath: string) => {
+            let redirect = targetPath;
+            const params = new URLSearchParams();
+            if (error) params.set('error', error);
+            if (csrf === 'true') params.set('csrf', 'true');
+            if (callbackUrl) params.set('callbackUrl', callbackUrl);
+            if (params.toString()) {
+              redirect += `?${params.toString()}`;
+            }
+            return redirect;
+          };
+
+          // Check callbackUrl first (explicit portal hint)
+          if (callbackUrl) {
+            try {
+              const cbUrl = new URL(callbackUrl, baseUrl);
+              const cbPath = cbUrl.pathname;
+              if (cbPath.startsWith('/super-master')) {
+                return buildRedirect('/super-master-login');
+              }
+              // /admin, /tenant-admin, or other institute paths
+              return buildRedirect('/login');
+            } catch {
+              // Fall through to check parsedUrl path
+            }
+          }
+
+          // Check the redirect URL path itself
+          const path = parsedUrl.pathname;
+          if (path.startsWith('/super-master')) {
+            return buildRedirect('/super-master-login');
+          }
+
+          // Default fallback - redirect to login with error info
+          return buildRedirect('/login');
+        }
+
+        if (url.startsWith('/')) {
+          return `${baseUrl}${url}`;
+        }
+      } catch {
+        // Fall back to default behavior
+        if (url.startsWith('/')) {
+          return `${baseUrl}${url}`;
+        }
       }
+
       return url.startsWith(baseUrl) ? url : baseUrl;
     },
   },
@@ -341,5 +430,6 @@ declare module 'next-auth/jwt' {
     tenantId?: string | null;
     orgName?: string | null;
     slug?: string | null;
+    kycComplete?: boolean;
   }
 }

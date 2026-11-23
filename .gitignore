@@ -6,6 +6,37 @@
 .pnp.js
 .yarn/install-state.gz
 
+
+
+# Dependencies
+node_modules/
+
+# Next.js
+.next/
+out/
+
+# Environment secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+
+# macOS
+.DS_Store
+
+# TypeScript
+*.tsbuildinfo
+
+
+
+
+
+
+
+
+
 # testing
 /coverage
 
