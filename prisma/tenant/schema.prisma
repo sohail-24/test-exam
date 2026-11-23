@@ -1,0 +1,170 @@
+// Exam Portal — Tenant Database Schema
+// Owns: Tenant-specific data only (exams, profiles, users, results)
+// Generated per-tenant with isolated data
+// Usage: TenantDatabaseFactory creates Prisma client per tenant
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../node_modules/@prisma/client/tenant"
+}
+
+// ─── Tenant User ─────────────────────────────────────────────
+// Tenant DB: User accounts for this tenant only
+// Note: SUPER_ADMIN role is NOT used here; TENANT_ADMIN/STUDENT only
+enum Role {
+  TENANT_ADMIN
+  STUDENT
+}
+
+model User {
+  id          String   @id @default(cuid())
+  tenantId    String   // Required: links user to tenant
+  email       String   @unique
+  password    String?
+  name        String?
+  image       String?
+  role        Role     @default(STUDENT)
+  kycComplete Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  tenant   Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  profile  Profile?
+  results  Result[]
+  accounts Account[]
+  sessions Session[]
+
+  @@index([tenantId])
+  @@index([email])
+}
+
+// ─── Tenant Reference (minimal, no sensitive data) ───────────
+model Tenant {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  name      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  users User[]
+  exams Exam[]
+  results Result[]
+}
+
+// ─── NextAuth Adapter Models (Tenant) ───────────────────────
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ─── Profile (KYC) ───────────────────────────────────────────
+// Tenant DB: Profile/identity documents stay with tenant data
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+model Profile {
+  id          String   @id @default(cuid())
+  tenantId    String
+  userId      String   @unique
+  name        String
+  gender      Gender
+  mobile      String
+  aadhaarPath String
+  selfiePath  String?
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+}
+
+// ─── Exam ───────────────────────────────────────────────────
+// Tenant DB: Exam definitions and questions isolated per tenant
+model Exam {
+  id              String   @id @default(cuid())
+  tenantId        String
+  title           String
+  description     String?
+  price           Float    @default(0)
+  isFree          Boolean  @default(true)
+  durationMinutes Int      @default(60)
+  isPublished     Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  questions Question[]
+  results   Result[]
+
+  @@index([tenantId])
+}
+
+// ─── Question ───────────────────────────────────────────────
+model Question {
+  id                 String   @id @default(cuid())
+  tenantId           String
+  examId             String
+  text               String   @db.Text
+  options            Json     // string[]
+  correctOptionIndex Int
+  order              Int      @default(0)
+  createdAt          DateTime @default(now())
+
+  exam Exam @relation(fields: [examId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([examId])
+}
+
+// ─── Result ─────────────────────────────────────────────────
+model Result {
+  id          String   @id @default(cuid())
+  tenantId    String
+  userId      String
+  examId      String
+  score       Int
+  totalMarks  Int
+  answers     Json     // { questionId: string; selectedIndex: number }[]
+  timeTaken   Int      // seconds
+  submittedAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exam   Exam   @relation(fields: [examId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([userId])
+}
