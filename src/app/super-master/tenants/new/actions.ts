@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getSuperAdminConfig } from '@/lib/env';
 import { revalidatePath } from 'next/cache';
+import { hashPassword } from '@/lib/password';
 
 function slugify(name: string): string {
   return name
@@ -67,7 +68,7 @@ export async function createTenantBySuperAdminAction(
       data: {
         tenantId: tenant.id,
         email: cleanEmail,
-        password,
+        password: hashPassword(password),
         role: 'TENANT_ADMIN',
         name: `${name.trim()} Admin`,
       },

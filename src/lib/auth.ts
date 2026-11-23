@@ -12,6 +12,7 @@ import {
   getSuperAdminConfig,
   validateServerEnv,
 } from '@/lib/env';
+import { verifyPassword } from '@/lib/password';
 
 validateServerEnv();
 
@@ -261,7 +262,7 @@ export const authOptions: NextAuthOptions = {
         }
 
         // Reject missing or non-matching stored passwords
-        if (!dbUser.password || !safeCompare(dbUser.password, password)) {
+        if (!dbUser.password || !verifyPassword(password, dbUser.password)) {
           throw new Error('Invalid email or password.');
         }
 

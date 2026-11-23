@@ -16,6 +16,7 @@
     "lucide-react": "^1.72.0",
     "next": "14.2.35",
     "next-auth": "^4.24.15",
+    "pg": "^8.23.1",
     "prisma": "^6.19.3",
     "react": "^18",
     "react-dom": "^18",
@@ -27,6 +28,7 @@
   },
   "devDependencies": {
     "@types/node": "^20",
+    "@types/pg": "^8.23.1",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "eslint": "^8",
